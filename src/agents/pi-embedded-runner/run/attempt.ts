@@ -37,7 +37,11 @@ import {
   buildBootstrapTruncationReportMeta,
   buildBootstrapInjectionStats,
 } from "../../bootstrap-budget.js";
-import { makeBootstrapWarn, resolveBootstrapContextForRun } from "../../bootstrap-files.js";
+import {
+  makeBootstrapWarn,
+  resolveBootstrapContextForRun,
+  sessionHasAssistantMessages,
+} from "../../bootstrap-files.js";
 import { createCacheTrace } from "../../cache-trace.js";
 import {
   listChannelSupportedActions,
@@ -795,6 +799,12 @@ export async function runEmbeddedAttempt(
     });
 
     const sessionLabel = params.sessionKey ?? params.sessionId;
+    const contextInjection =
+      params.contextInjection ?? params.config?.agents?.defaults?.contextInjection;
+    const hasExistingAssistantMessages =
+      contextInjection === "first-message-only"
+        ? sessionHasAssistantMessages(params.sessionFile)
+        : false;
     const { bootstrapFiles: hookAdjustedBootstrapFiles, contextFiles } =
       await resolveBootstrapContextForRun({
         workspaceDir: effectiveWorkspace,
@@ -804,6 +814,8 @@ export async function runEmbeddedAttempt(
         warn: makeBootstrapWarn({ sessionLabel, warn: (message) => log.warn(message) }),
         contextMode: params.bootstrapContextMode,
         runKind: params.bootstrapContextRunKind,
+        contextInjection,
+        hasExistingAssistantMessages,
       });
     const bootstrapMaxChars = resolveBootstrapMaxChars(params.config);
     const bootstrapTotalMaxChars = resolveBootstrapTotalMaxChars(params.config);
