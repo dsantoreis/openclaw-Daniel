@@ -15,9 +15,9 @@ function makeToolUseMessage(
       type: "tool_use" as const,
       id: t.id ?? `tool_${i}`,
       name: t.name,
-      input: t.input,
+      arguments: t.input,
     })),
-  };
+  } as unknown as AgentMessage;
 }
 
 function makeToolResultMessage(
@@ -28,17 +28,21 @@ function makeToolResultMessage(
     content: results.map((r) => ({
       type: "tool_result" as const,
       tool_use_id: r.tool_use_id,
-      content: r.content ?? "ok",
+      content: [{ type: "text" as const, text: r.content ?? "ok" }],
       is_error: r.is_error ?? false,
     })),
-  };
+  } as unknown as AgentMessage;
 }
 
 /** Build a session with N file write turns (assistant tool_use + user tool_result). */
 function buildFileWriteSession(count: number, _prePrompt = 2): AgentMessage[] {
   const messages: AgentMessage[] = [
-    { role: "user", content: "system prompt" },
-    { role: "assistant", content: "acknowledged" },
+    {
+      role: "user",
+      content: [{ type: "text", text: "system prompt" }],
+      timestamp: Date.now(),
+    } as AgentMessage,
+    { role: "assistant", content: [{ type: "text", text: "acknowledged" }] } as AgentMessage,
   ];
   for (let i = 0; i < count; i++) {
     const id = `write_${i}`;
@@ -55,8 +59,12 @@ function buildFileWriteSession(count: number, _prePrompt = 2): AgentMessage[] {
 /** Build a session with N identical tool calls. */
 function buildRepeatToolSession(count: number, toolName: string, input: unknown): AgentMessage[] {
   const messages: AgentMessage[] = [
-    { role: "user", content: "system prompt" },
-    { role: "assistant", content: "acknowledged" },
+    {
+      role: "user",
+      content: [{ type: "text", text: "system prompt" }],
+      timestamp: Date.now(),
+    } as AgentMessage,
+    { role: "assistant", content: [{ type: "text", text: "acknowledged" }] } as AgentMessage,
   ];
   for (let i = 0; i < count; i++) {
     const id = `repeat_${i}`;
@@ -69,8 +77,12 @@ function buildRepeatToolSession(count: number, toolName: string, input: unknown)
 /** Build a session with N error tool results. */
 function buildErrorSession(count: number): AgentMessage[] {
   const messages: AgentMessage[] = [
-    { role: "user", content: "system prompt" },
-    { role: "assistant", content: "acknowledged" },
+    {
+      role: "user",
+      content: [{ type: "text", text: "system prompt" }],
+      timestamp: Date.now(),
+    } as AgentMessage,
+    { role: "assistant", content: [{ type: "text", text: "acknowledged" }] } as AgentMessage,
   ];
   for (let i = 0; i < count; i++) {
     const id = `err_${i}`;
@@ -162,8 +174,12 @@ describe("ExecutionHealthMonitor", () => {
     it("detects turns without real effects", () => {
       const monitor = new ExecutionHealthMonitor({ noEffectLoopThreshold: 3 });
       const messages: AgentMessage[] = [
-        { role: "user", content: "system prompt" },
-        { role: "assistant", content: "acknowledged" },
+        {
+          role: "user",
+          content: [{ type: "text", text: "system prompt" }],
+          timestamp: Date.now(),
+        } as AgentMessage,
+        { role: "assistant", content: [{ type: "text", text: "acknowledged" }] } as AgentMessage,
       ];
 
       // Simulate 3 turns without real effects (only file writes)
@@ -191,8 +207,12 @@ describe("ExecutionHealthMonitor", () => {
 
       // Build a cumulative message array (simulating real session growth)
       const messages: AgentMessage[] = [
-        { role: "user", content: "system prompt" },
-        { role: "assistant", content: "acknowledged" },
+        {
+          role: "user",
+          content: [{ type: "text", text: "system prompt" }],
+          timestamp: Date.now(),
+        } as AgentMessage,
+        { role: "assistant", content: [{ type: "text", text: "acknowledged" }] } as AgentMessage,
       ];
 
       // Turn 1: no effect (file write)
@@ -264,8 +284,12 @@ describe("ExecutionHealthMonitor", () => {
     it("stops counting on success", () => {
       const monitor = new ExecutionHealthMonitor({ errorCascadeThreshold: 3 });
       const messages: AgentMessage[] = [
-        { role: "user", content: "system prompt" },
-        { role: "assistant", content: "acknowledged" },
+        {
+          role: "user",
+          content: [{ type: "text", text: "system prompt" }],
+          timestamp: Date.now(),
+        } as AgentMessage,
+        { role: "assistant", content: [{ type: "text", text: "acknowledged" }] } as AgentMessage,
         // 2 errors, then a success, then 2 errors = no cascade
         ...buildErrorSession(2).slice(2),
         makeToolUseMessage([{ name: "Bash", input: { command: "echo ok" }, id: "ok_1" }]),
@@ -281,8 +305,12 @@ describe("ExecutionHealthMonitor", () => {
     it("handles empty session", () => {
       const monitor = new ExecutionHealthMonitor();
       const messages: AgentMessage[] = [
-        { role: "user", content: "system prompt" },
-        { role: "assistant", content: "acknowledged" },
+        {
+          role: "user",
+          content: [{ type: "text", text: "system prompt" }],
+          timestamp: Date.now(),
+        } as AgentMessage,
+        { role: "assistant", content: [{ type: "text", text: "acknowledged" }] } as AgentMessage,
       ];
       const signals = monitor.evaluate({ messages, prePromptMessageCount: 2 });
       expect(signals).toHaveLength(0);
@@ -291,8 +319,12 @@ describe("ExecutionHealthMonitor", () => {
     it("handles single turn", () => {
       const monitor = new ExecutionHealthMonitor();
       const messages: AgentMessage[] = [
-        { role: "user", content: "system prompt" },
-        { role: "assistant", content: "acknowledged" },
+        {
+          role: "user",
+          content: [{ type: "text", text: "system prompt" }],
+          timestamp: Date.now(),
+        } as AgentMessage,
+        { role: "assistant", content: [{ type: "text", text: "acknowledged" }] } as AgentMessage,
         makeToolUseMessage([
           { name: "Write", input: { file_path: "/tmp/a.md", content: "x" }, id: "w1" },
         ]),
@@ -316,8 +348,12 @@ describe("ExecutionHealthMonitor", () => {
     it("reset clears internal state", () => {
       const monitor = new ExecutionHealthMonitor({ noEffectLoopThreshold: 2 });
       const messages: AgentMessage[] = [
-        { role: "user", content: "system prompt" },
-        { role: "assistant", content: "acknowledged" },
+        {
+          role: "user",
+          content: [{ type: "text", text: "system prompt" }],
+          timestamp: Date.now(),
+        } as AgentMessage,
+        { role: "assistant", content: [{ type: "text", text: "acknowledged" }] } as AgentMessage,
       ];
 
       // Turn 1: no effect
