@@ -215,6 +215,13 @@ export function createOpenClawCodingTools(options?: {
   memoryFlushWritePath?: string;
   agentDir?: string;
   workspaceDir?: string;
+  /**
+   * Workspace directory that spawned subagents should inherit.
+   * When running inside a read-only sandbox, workspaceDir is the sandbox copy but
+   * subagents should inherit the real agent workspace, not the temporary sandbox dir.
+   * Defaults to workspaceDir when not set.
+   */
+  spawnWorkspaceDir?: string;
   config?: OpenClawConfig;
   abortSignal?: AbortSignal;
   /**
@@ -499,6 +506,9 @@ export function createOpenClawCodingTools(options?: {
       sandboxFsBridge,
       fsPolicy,
       workspaceDir: workspaceRoot,
+      spawnWorkspaceDir: options?.spawnWorkspaceDir
+        ? resolveWorkspaceRoot(options.spawnWorkspaceDir)
+        : undefined,
       sandboxed: !!sandbox,
       config: options?.config,
       pluginToolAllowlist: collectExplicitAllowlist([
