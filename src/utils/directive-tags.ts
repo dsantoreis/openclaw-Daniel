@@ -14,22 +14,30 @@ type InlineDirectiveParseOptions = {
   stripReplyTags?: boolean;
 };
 
+import { parseFenceSpans } from "../markdown/fences.js";
+
 const AUDIO_TAG_RE = /\[\[\s*audio_as_voice\s*\]\]/gi;
 const REPLY_TAG_RE = /\[\[\s*(?:reply_to_current|reply_to\s*:\s*([^\]\n]+))\s*\]\]/gi;
 
+function normalizeNonCodeWhitespace(text: string): string {
+  return text.replace(/[ \t]+/g, " ").replace(/[ \t]*\n[ \t]*/g, "\n");
+}
+
 function normalizeDirectiveWhitespace(text: string): string {
-  // Split on fenced code blocks to preserve their internal whitespace.
-  // Regex captures the full fenced block (``` or ~~~ with optional info string).
-  const parts = text.split(/(```[\s\S]*?```|~~~[\s\S]*?~~~)/g);
-  const normalized = parts
-    .map((part, i) => {
-      // Odd indices are the captured code-block groups; leave them untouched.
-      if (i % 2 === 1) {
-        return part;
-      }
-      return part.replace(/[ \t]+/g, " ").replace(/[ \t]*\n[ \t]*/g, "\n");
-    })
-    .join("");
+  const fenceSpans = parseFenceSpans(text);
+  if (fenceSpans.length === 0) {
+    return normalizeNonCodeWhitespace(text).trim();
+  }
+
+  let normalized = "";
+  let cursor = 0;
+  for (const span of fenceSpans) {
+    normalized += normalizeNonCodeWhitespace(text.slice(cursor, span.start));
+    normalized += text.slice(span.start, span.end);
+    cursor = span.end;
+  }
+  normalized += normalizeNonCodeWhitespace(text.slice(cursor));
+
   return normalized.trim();
 }
 

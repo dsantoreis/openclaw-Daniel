@@ -75,6 +75,29 @@ describe("parseInlineDirectives preserves code block indentation", () => {
     expect(result.text).toContain("    return 42");
   });
 
+  test("does not split early when fenced code contains inner triple backticks", () => {
+    const input = [
+      "[[reply_to_current]]  Intro   text",
+      "",
+      "```md",
+      "outer",
+      "```json",
+      '{"nested": true}',
+      "```",
+      "    still indented",
+      "```",
+      "",
+      "tail   text",
+    ].join("\n");
+    const result = parseInlineDirectives(input, { stripReplyTags: true });
+    expect(result.text).toContain("    still indented");
+    expect(result.text).toContain("```json");
+    expect(result.text).toContain('{"nested": true}');
+    expect(result.text).toBe(
+      'Intro text\n\n```md\nouter\n```json\n{"nested": true}\n```\n    still indented\n```\n\ntail text',
+    );
+  });
+
   test("normalizes whitespace outside code blocks", () => {
     const input = "  hello   world  \n  text  ";
     const result = parseInlineDirectives(input);
