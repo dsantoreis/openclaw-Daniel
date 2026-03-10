@@ -36,6 +36,7 @@ const renderGatewayPortHealthDiagnostics = vi.fn(() => ["diag: unhealthy port"])
 const renderRestartDiagnostics = vi.fn(() => ["diag: unhealthy runtime"]);
 const resolveGatewayPort = vi.fn(() => 18789);
 const findGatewayPidsOnPortSync = vi.fn<(port: number) => number[]>(() => []);
+const listPortListeners = vi.fn<(port: number) => { pid: number }[]>(() => []);
 const probeGateway = vi.fn<
   (opts: {
     url: string;
@@ -67,6 +68,10 @@ vi.mock("../../config/config.js", () => ({
 
 vi.mock("../../infra/restart.js", () => ({
   findGatewayPidsOnPortSync: (port: number) => findGatewayPidsOnPortSync(port),
+}));
+
+vi.mock("../ports.js", () => ({
+  listPortListeners: (port: number) => listPortListeners(port),
 }));
 
 vi.mock("../../gateway/probe.js", () => ({
@@ -122,6 +127,7 @@ describe("runDaemonRestart health checks", () => {
     renderRestartDiagnostics.mockReset();
     resolveGatewayPort.mockReset();
     findGatewayPidsOnPortSync.mockReset();
+    listPortListeners.mockReset();
     probeGateway.mockReset();
     isRestartEnabled.mockReset();
     loadConfig.mockReset();
@@ -224,7 +230,7 @@ describe("runDaemonRestart health checks", () => {
   it("signals an unmanaged gateway process on stop", async () => {
     vi.spyOn(process, "platform", "get").mockReturnValue("win32");
     const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
-    findGatewayPidsOnPortSync.mockReturnValue([4200, 4200, 4300]);
+    listPortListeners.mockReturnValue([{ pid: 4200 }, { pid: 4200 }, { pid: 4300 }]);
     mockSpawnSync.mockReturnValue({
       error: null,
       status: 0,
@@ -238,7 +244,7 @@ describe("runDaemonRestart health checks", () => {
 
     await runDaemonStop({ json: true });
 
-    expect(findGatewayPidsOnPortSync).toHaveBeenCalledWith(18789);
+    expect(listPortListeners).toHaveBeenCalledWith(18789);
     expect(killSpy).toHaveBeenCalledWith(4200, "SIGTERM");
     expect(killSpy).toHaveBeenCalledWith(4300, "SIGTERM");
   });
@@ -246,7 +252,7 @@ describe("runDaemonRestart health checks", () => {
   it("signals a single unmanaged gateway process on restart", async () => {
     vi.spyOn(process, "platform", "get").mockReturnValue("win32");
     const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
-    findGatewayPidsOnPortSync.mockReturnValue([4200]);
+    listPortListeners.mockReturnValue([{ pid: 4200 }]);
     mockSpawnSync.mockReturnValue({
       error: null,
       status: 0,
@@ -271,7 +277,7 @@ describe("runDaemonRestart health checks", () => {
 
     await runDaemonRestart({ json: true });
 
-    expect(findGatewayPidsOnPortSync).toHaveBeenCalledWith(18789);
+    expect(listPortListeners).toHaveBeenCalledWith(18789);
     expect(killSpy).toHaveBeenCalledWith(4200, "SIGUSR1");
     expect(probeGateway).toHaveBeenCalledTimes(1);
     expect(waitForGatewayHealthyListener).toHaveBeenCalledTimes(1);
@@ -282,7 +288,7 @@ describe("runDaemonRestart health checks", () => {
 
   it("fails unmanaged restart when multiple gateway listeners are present", async () => {
     vi.spyOn(process, "platform", "get").mockReturnValue("win32");
-    findGatewayPidsOnPortSync.mockReturnValue([4200, 4300]);
+    listPortListeners.mockReturnValue([{ pid: 4200 }, { pid: 4300 }]);
     mockSpawnSync.mockReturnValue({
       error: null,
       status: 0,
@@ -303,7 +309,7 @@ describe("runDaemonRestart health checks", () => {
   });
 
   it("fails unmanaged restart when the running gateway has commands.restart disabled", async () => {
-    findGatewayPidsOnPortSync.mockReturnValue([4200]);
+    listPortListeners.mockReturnValue([{ pid: 4200 }]);
     probeGateway.mockResolvedValue({
       ok: true,
       configSnapshot: { commands: { restart: false } },

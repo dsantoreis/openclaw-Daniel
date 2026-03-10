@@ -10,6 +10,7 @@ import { findGatewayPidsOnPortSync } from "../../infra/restart.js";
 import { defaultRuntime } from "../../runtime.js";
 import { theme } from "../../terminal/theme.js";
 import { formatCliCommand } from "../command-format.js";
+import { listPortListeners } from "../ports.js";
 import {
   runServiceRestart,
   runServiceStart,
@@ -96,7 +97,11 @@ function readGatewayProcessArgsSync(pid: number): string[] | null {
 }
 
 function resolveGatewayListenerPids(port: number): number[] {
-  return Array.from(new Set(findGatewayPidsOnPortSync(port)))
+  const candidates =
+    process.platform === "win32"
+      ? listPortListeners(port).map((proc) => proc.pid)
+      : findGatewayPidsOnPortSync(port);
+  return Array.from(new Set(candidates))
     .filter((pid): pid is number => Number.isFinite(pid) && pid > 0)
     .filter((pid) => {
       const args = readGatewayProcessArgsSync(pid);
@@ -209,19 +214,22 @@ export async function runDaemonStop(opts: DaemonLifecycleOptions = {}) {
     service,
     opts,
     onNotLoaded: async () => stopGatewayWithoutServiceManager(gatewayPort),
-    postStop: async () => {
-      // On Windows, schtasks /End kills the task-runner shell but the
-      // spawned node.exe gateway process may survive.  Send SIGTERM to
-      // any remaining gateway processes listening on the port.
-      const remainingPids = resolveVerifiedGatewayListenerPids(gatewayPort);
-      for (const pid of remainingPids) {
-        try {
-          signalGatewayPid(pid, "SIGTERM");
-        } catch {
-          // Best-effort: process may have exited between the check and the kill.
-        }
-      }
-    },
+    postStop:
+      process.platform === "win32"
+        ? async () => {
+            // On Windows, schtasks /End kills the task-runner shell but the
+            // spawned node.exe gateway process may survive. Send SIGTERM to
+            // any remaining gateway processes listening on the port.
+            const remainingPids = resolveVerifiedGatewayListenerPids(gatewayPort);
+            for (const pid of remainingPids) {
+              try {
+                signalGatewayPid(pid, "SIGTERM");
+              } catch {
+                // Best-effort: process may have exited between the check and the kill.
+              }
+            }
+          }
+        : undefined,
   });
 }
 
