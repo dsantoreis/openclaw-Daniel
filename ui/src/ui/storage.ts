@@ -32,7 +32,7 @@ function getSessionStorage(): Storage | null {
   return null;
 }
 
-function normalizeGatewayTokenScope(gatewayUrl: string): string {
+export function normalizeGatewayTokenScope(gatewayUrl: string): string {
   const trimmed = gatewayUrl.trim();
   if (!trimmed) {
     return "default";

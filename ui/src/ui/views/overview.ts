@@ -5,7 +5,7 @@ import { buildExternalLinkRel, EXTERNAL_LINK_TARGET } from "../external-link.ts"
 import { formatRelativeTimestamp, formatDurationHuman } from "../format.ts";
 import type { GatewayHelloOk } from "../gateway.ts";
 import { formatNextRun } from "../presenter.ts";
-import type { UiSettings } from "../storage.ts";
+import { normalizeGatewayTokenScope, type UiSettings } from "../storage.ts";
 import { shouldShowPairingHint } from "./overview-hints.ts";
 
 export type OverviewProps = {
@@ -205,9 +205,13 @@ export function renderOverview(props: OverviewProps) {
               .value=${props.settings.gatewayUrl}
               @input=${(e: Event) => {
                 const v = (e.target as HTMLInputElement).value;
+                const sameScope =
+                  normalizeGatewayTokenScope(v) ===
+                  normalizeGatewayTokenScope(props.settings.gatewayUrl);
                 props.onSettingsChange({
                   ...props.settings,
                   gatewayUrl: v,
+                  token: sameScope ? props.settings.token : "",
                 });
               }}
               placeholder="ws://100.x.y.z:18789"

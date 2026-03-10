@@ -198,7 +198,7 @@ describe("control UI routing", () => {
     expect(window.location.hash).toBe("");
   });
 
-  it("clears the current token when the gateway URL changes", async () => {
+  it("clears the current token when the gateway URL scope changes", async () => {
     const app = mountApp("/ui/overview#token=abc123");
     await app.updateComplete;
 
@@ -212,6 +212,26 @@ describe("control UI routing", () => {
 
     expect(app.settings.gatewayUrl).toBe("wss://other-gateway.example/openclaw");
     expect(app.settings.token).toBe("");
+  });
+
+  it("keeps the current token while editing the same gateway scope", async () => {
+    localStorage.setItem(
+      "openclaw.control.settings.v1",
+      JSON.stringify({ gatewayUrl: "wss://gateway.example/openclaw" }),
+    );
+    const app = mountApp("/ui/overview#token=abc123");
+    await app.updateComplete;
+
+    const gatewayUrlInput = app.querySelector<HTMLInputElement>(
+      'input[placeholder="ws://100.x.y.z:18789"]',
+    );
+    expect(gatewayUrlInput).not.toBeNull();
+    gatewayUrlInput!.value = "wss://gateway.example/openclaw/";
+    gatewayUrlInput!.dispatchEvent(new Event("input", { bubbles: true }));
+    await app.updateComplete;
+
+    expect(app.settings.gatewayUrl).toBe("wss://gateway.example/openclaw/");
+    expect(app.settings.token).toBe("abc123");
   });
 
   it("keeps a hash token pending until the gateway URL change is confirmed", async () => {
