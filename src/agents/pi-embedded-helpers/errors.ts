@@ -218,6 +218,8 @@ const BILLING_402_HINTS = [
   "plans & billing",
   "add more credits",
   "top up",
+  "used up your points",
+  "used up your credits",
 ] as const;
 const BILLING_402_PLAN_HINTS = [
   "upgrade your plan",

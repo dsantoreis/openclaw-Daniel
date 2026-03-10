@@ -43,6 +43,9 @@ const GROQ_TOO_MANY_REQUESTS_MESSAGE =
   "429 Too Many Requests: Too many requests were sent in a given timeframe.";
 const GROQ_SERVICE_UNAVAILABLE_MESSAGE =
   "503 Service Unavailable: The server is temporarily unable to handle the request due to overloading or maintenance."; // pragma: allowlist secret
+// Poe API billing example (#42236): https://poe.com/api/keys
+const POE_POINTS_EXHAUSTED_MESSAGE =
+  "You've used up your points! Visit https://poe.com/api/keys to get more.";
 
 describe("isAuthPermanentErrorMessage", () => {
   it("matches permanent auth failure patterns", () => {
@@ -106,6 +109,7 @@ describe("isBillingErrorMessage", () => {
       "Payment Required",
       "HTTP 402 Payment Required",
       "plans & billing",
+      POE_POINTS_EXHAUSTED_MESSAGE,
     ];
     for (const sample of samples) {
       expect(isBillingErrorMessage(sample)).toBe(true);
@@ -580,6 +584,7 @@ describe("classifyFailoverReasonFromHttpStatus – 402 temporary limits", () => 
     expect(classifyFailoverReasonFromHttpStatus(402, undefined)).toBe("billing");
     expect(classifyFailoverReasonFromHttpStatus(402, "")).toBe("billing");
     expect(classifyFailoverReasonFromHttpStatus(402, "Payment required")).toBe("billing");
+    expect(classifyFailoverReasonFromHttpStatus(402, POE_POINTS_EXHAUSTED_MESSAGE)).toBe("billing");
   });
 
   it("matches raw 402 wrappers and status-split payloads for the same message", () => {
@@ -614,6 +619,7 @@ describe("classifyFailoverReason", () => {
     expect(classifyFailoverReason(GEMINI_RESOURCE_EXHAUSTED_MESSAGE)).toBe("rate_limit");
     expect(classifyFailoverReason(ANTHROPIC_OVERLOADED_PAYLOAD)).toBe("overloaded");
     expect(classifyFailoverReason(OPENROUTER_CREDITS_MESSAGE)).toBe("billing");
+    expect(classifyFailoverReason(POE_POINTS_EXHAUSTED_MESSAGE)).toBe("billing");
     expect(classifyFailoverReason(TOGETHER_PAYMENT_REQUIRED_MESSAGE)).toBe("billing");
     expect(classifyFailoverReason(TOGETHER_ENGINE_OVERLOADED_MESSAGE)).toBe("overloaded");
     expect(classifyFailoverReason(GROQ_TOO_MANY_REQUESTS_MESSAGE)).toBe("rate_limit");
@@ -647,6 +653,12 @@ describe("classifyFailoverReason", () => {
       "billing",
     );
     expect(classifyFailoverReason(INSUFFICIENT_QUOTA_PAYLOAD)).toBe("billing");
+    // Poe API "used up your points" (#42236)
+    expect(
+      classifyFailoverReason(
+        "You've used up your points! Visit https://poe.com/api/keys to get more.",
+      ),
+    ).toBe("billing");
     expect(classifyFailoverReason("deadline exceeded")).toBe("timeout");
     expect(classifyFailoverReason("request ended without sending any chunks")).toBe("timeout");
     expect(classifyFailoverReason("Connection error.")).toBe("timeout");
