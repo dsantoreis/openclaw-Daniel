@@ -40,12 +40,53 @@ describe("createOpenAICompletionsContentFlattenWrapper", () => {
     expect(Array.isArray(msgs[0].content)).toBe(true);
   });
 
-  it("sets content to null when no text parts exist", () => {
+  it("concatenates multiple text parts and drops non-text parts", () => {
     let capturedPayload: Record<string, unknown> | undefined;
     const fakeStream = vi.fn(
       (_model: unknown, _context: unknown, options?: { onPayload?: Function }) => {
         const payload = {
           messages: [
+            {
+              role: "assistant",
+              content: [
+                { type: "text", text: "First part. " },
+                { type: "tool_use", id: "tool_1" },
+                { type: "text", text: "Second part." },
+              ],
+              tool_calls: [{ id: "call_1" }],
+            },
+          ],
+        };
+        options?.onPayload?.(payload, "test-model");
+        capturedPayload = payload;
+        return {};
+      },
+    );
+
+    const wrapped = createOpenAICompletionsContentFlattenWrapper(fakeStream as unknown as StreamFn);
+    void wrapped(
+      { api: "openai-completions" } as Parameters<StreamFn>[0],
+      {} as Parameters<StreamFn>[1],
+      {},
+    );
+
+    const msgs = (capturedPayload as Record<string, unknown>).messages as Array<
+      Record<string, unknown>
+    >;
+    expect(msgs[0].content).toBe("First part. Second part.");
+  });
+
+  it("preserves empty assistant text and sets content to null when no text parts exist", () => {
+    let capturedPayload: Record<string, unknown> | undefined;
+    const fakeStream = vi.fn(
+      (_model: unknown, _context: unknown, options?: { onPayload?: Function }) => {
+        const payload = {
+          messages: [
+            {
+              role: "assistant",
+              content: [{ type: "text", text: "" }],
+              tool_calls: [{ id: "call_empty" }],
+            },
             {
               role: "assistant",
               content: [{ type: "image", url: "http://example.com/img.png" }],
@@ -69,7 +110,8 @@ describe("createOpenAICompletionsContentFlattenWrapper", () => {
     const msgs = (capturedPayload as Record<string, unknown>).messages as Array<
       Record<string, unknown>
     >;
-    expect(msgs[0].content).toBeNull();
+    expect(msgs[0].content).toBe("");
+    expect(msgs[1].content).toBeNull();
   });
 
   it("skips non-openai-completions models", () => {

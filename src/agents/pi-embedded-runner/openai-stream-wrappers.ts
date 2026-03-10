@@ -286,11 +286,11 @@ export function createOpenAICompletionsContentFlattenWrapper(
               if (msg.role === "assistant" && Array.isArray(msg.content)) {
                 // Flatten content array to a concatenated string.
                 const parts = msg.content as Array<{ type?: string; text?: string }>;
-                const text = parts
-                  .filter((p) => p.type === "text" && typeof p.text === "string")
-                  .map((p) => p.text)
-                  .join("");
-                msg.content = text || null;
+                const textParts = parts.filter(
+                  (p): p is { type: "text"; text: string } =>
+                    p.type === "text" && typeof p.text === "string",
+                );
+                msg.content = textParts.length > 0 ? textParts.map((p) => p.text).join("") : null;
               }
             }
           }
