@@ -209,6 +209,19 @@ export async function runDaemonStop(opts: DaemonLifecycleOptions = {}) {
     service,
     opts,
     onNotLoaded: async () => stopGatewayWithoutServiceManager(gatewayPort),
+    postStop: async () => {
+      // On Windows, schtasks /End kills the task-runner shell but the
+      // spawned node.exe gateway process may survive.  Send SIGTERM to
+      // any remaining gateway processes listening on the port.
+      const remainingPids = resolveVerifiedGatewayListenerPids(gatewayPort);
+      for (const pid of remainingPids) {
+        try {
+          signalGatewayPid(pid, "SIGTERM");
+        } catch {
+          // Best-effort: process may have exited between the check and the kill.
+        }
+      }
+    },
   });
 }
 

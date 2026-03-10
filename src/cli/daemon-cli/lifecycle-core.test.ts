@@ -152,6 +152,46 @@ describe("runServiceRestart token drift", () => {
     expect(service.stop).not.toHaveBeenCalled();
   });
 
+  it("calls postStop after service.stop succeeds", async () => {
+    service.stop.mockClear();
+    service.isLoaded.mockResolvedValue(true);
+    service.stop.mockResolvedValue(undefined);
+    const postStop = vi.fn(async () => {});
+
+    await runServiceStop({
+      serviceNoun: "Gateway",
+      service,
+      opts: { json: true },
+      postStop,
+    });
+
+    expect(service.stop).toHaveBeenCalledTimes(1);
+    expect(postStop).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not fail stop when postStop throws", async () => {
+    service.stop.mockClear();
+    service.isLoaded.mockResolvedValue(true);
+    service.stop.mockResolvedValue(undefined);
+    const postStop = vi.fn(async () => {
+      throw new Error("cleanup failed");
+    });
+
+    await runServiceStop({
+      serviceNoun: "Gateway",
+      service,
+      opts: { json: true },
+      postStop,
+    });
+
+    expect(service.stop).toHaveBeenCalledTimes(1);
+    expect(postStop).toHaveBeenCalledTimes(1);
+    const jsonLine = runtimeLogs.find((line) => line.trim().startsWith("{"));
+    const payload = JSON.parse(jsonLine ?? "{}") as { ok?: boolean; result?: string };
+    expect(payload.ok).toBe(true);
+    expect(payload.result).toBe("stopped");
+  });
+
   it("runs restart health checks after an unmanaged restart signal", async () => {
     const postRestartCheck = vi.fn(async () => {});
     service.isLoaded.mockResolvedValue(false);

@@ -248,6 +248,7 @@ export async function runServiceStop(params: {
   service: GatewayService;
   opts?: DaemonLifecycleOptions;
   onNotLoaded?: (ctx: NotLoadedActionContext) => Promise<NotLoadedActionResult | null>;
+  postStop?: () => Promise<void>;
 }) {
   const json = Boolean(params.opts?.json);
   const { stdout, emit, fail } = createActionIO({ action: "stop", json });
@@ -296,6 +297,14 @@ export async function runServiceStop(params: {
   } catch (err) {
     fail(`${params.serviceNoun} stop failed: ${String(err)}`);
     return;
+  }
+
+  if (params.postStop) {
+    try {
+      await params.postStop();
+    } catch {
+      // Best-effort cleanup; do not fail the stop operation.
+    }
   }
 
   let stopped = false;
