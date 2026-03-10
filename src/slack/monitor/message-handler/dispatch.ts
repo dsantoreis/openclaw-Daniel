@@ -317,6 +317,10 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
 
       if (canFinalizeViaPreviewEdit) {
         draftStream?.stop();
+        // Wait for any in-flight draft edit to complete before the final
+        // update so Slack's client does not render a stale partial that
+        // arrives after the definitive chat.update call.
+        await draftStream?.waitForInFlight();
         try {
           await ctx.app.client.chat.update({
             token: ctx.botToken,

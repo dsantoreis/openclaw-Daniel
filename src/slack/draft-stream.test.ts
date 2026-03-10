@@ -122,6 +122,45 @@ describe("createSlackDraftStream", () => {
     expect(remove).not.toHaveBeenCalled();
   });
 
+  it("waitForInFlight resolves after in-flight edit completes", async () => {
+    let resolveEdit: () => void = () => {};
+    const editPromise = new Promise<void>((r) => {
+      resolveEdit = r;
+    });
+    const edit = vi.fn<DraftEditFn>(async () => {
+      await editPromise;
+    });
+    const { stream, send } = createDraftStreamHarness({ edit });
+
+    // First update triggers a send (no prior message)
+    stream.update("hello");
+    await stream.flush();
+    expect(send).toHaveBeenCalledTimes(1);
+
+    // Second update triggers an edit that blocks on editPromise
+    stream.update("hello world");
+    // Don't await flush — let it go in-flight
+    const flushP = stream.flush();
+
+    // Stop and wait for in-flight
+    stream.stop();
+    const waitP = stream.waitForInFlight();
+
+    // Not resolved yet
+    let waited = false;
+    void waitP.then(() => {
+      waited = true;
+    });
+    await Promise.resolve(); // microtick
+    expect(waited).toBe(false);
+
+    // Resolve the in-flight edit
+    resolveEdit();
+    await flushP;
+    await waitP;
+    expect(waited).toBe(true);
+  });
+
   it("clear warns when cleanup fails", async () => {
     const remove = vi.fn<DraftRemoveFn>(async () => {
       throw new Error("cleanup failed");

@@ -10,6 +10,8 @@ export type SlackDraftStream = {
   flush: () => Promise<void>;
   clear: () => Promise<void>;
   stop: () => void;
+  /** Wait for any in-flight edit to finish (safe to call after stop). */
+  waitForInFlight: () => Promise<void>;
   forceNewMessage: () => void;
   messageId: () => string | undefined;
   channelId: () => string | undefined;
@@ -133,6 +135,7 @@ export function createSlackDraftStream(params: {
     flush: loop.flush,
     clear,
     stop,
+    waitForInFlight: loop.waitForInFlight,
     forceNewMessage,
     messageId: () => streamMessageId,
     channelId: () => streamChannelId,
