@@ -68,6 +68,30 @@ describe("scanOpenRouterModels", () => {
     expect(byPricing.image.skipped).toBe(true);
   });
 
+  it("handles models with missing modality field", async () => {
+    const fetchImpl = createFetchFixture({
+      data: [
+        {
+          id: "custom/no-modality:free",
+          name: "No Modality",
+          context_length: 4_096,
+          supported_parameters: [],
+          // modality intentionally omitted
+          pricing: { prompt: "0", completion: "0" },
+        },
+      ],
+    });
+
+    const results = await scanOpenRouterModels({
+      fetchImpl,
+      probe: false,
+    });
+
+    expect(results).toHaveLength(1);
+    const [entry] = results;
+    expect(entry.image.skipped).toBe(true);
+  });
+
   it("requires an API key when probing", async () => {
     const fetchImpl = createFetchFixture({ data: [] });
     await withEnvAsync({ OPENROUTER_API_KEY: undefined }, async () => {
