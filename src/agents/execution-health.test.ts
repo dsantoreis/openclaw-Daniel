@@ -34,6 +34,16 @@ function makeToolResultMessage(
   } as unknown as AgentMessage;
 }
 
+function makeSdkToolResultMessage(toolCallId: string, isError = false): AgentMessage {
+  return {
+    role: "toolResult",
+    toolCallId,
+    toolName: "bash",
+    content: [{ type: "text", text: isError ? "command not found" : "ok" }],
+    isError,
+  } as unknown as AgentMessage;
+}
+
 /** Build a session with N file write turns (assistant tool_use + user tool_result). */
 function buildFileWriteSession(count: number, _prePrompt = 2): AgentMessage[] {
   const messages: AgentMessage[] = [
@@ -298,6 +308,28 @@ describe("ExecutionHealthMonitor", () => {
       ];
       const signals = monitor.evaluate({ messages, prePromptMessageCount: 2 });
       expect(signals.find((s) => s.type === "error-cascade")).toBeUndefined();
+    });
+
+    it("counts consecutive SDK toolResult errors", () => {
+      const monitor = new ExecutionHealthMonitor({ errorCascadeThreshold: 3 });
+      const messages: AgentMessage[] = [
+        {
+          role: "user",
+          content: [{ type: "text", text: "system prompt" }],
+          timestamp: Date.now(),
+        } as AgentMessage,
+        { role: "assistant", content: [{ type: "text", text: "acknowledged" }] } as AgentMessage,
+        makeToolUseMessage([{ name: "Bash", input: { command: "fail-1" }, id: "sdk_err_1" }]),
+        makeSdkToolResultMessage("sdk_err_1", true),
+        makeToolUseMessage([{ name: "Bash", input: { command: "fail-2" }, id: "sdk_err_2" }]),
+        makeSdkToolResultMessage("sdk_err_2", true),
+        makeToolUseMessage([{ name: "Bash", input: { command: "fail-3" }, id: "sdk_err_3" }]),
+        makeSdkToolResultMessage("sdk_err_3", true),
+      ];
+      const signals = monitor.evaluate({ messages, prePromptMessageCount: 2 });
+      const ec = signals.find((s) => s.type === "error-cascade");
+      expect(ec).toBeDefined();
+      expect(ec!.details.toolCallCount).toBe(3);
     });
   });
 

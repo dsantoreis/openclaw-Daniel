@@ -376,22 +376,31 @@ export class ExecutionHealthMonitor {
     messages: AgentMessage[],
     prePromptMessageCount: number,
   ): ExecutionHealthSignal | undefined {
-    // Walk backwards from the end to count consecutive errors
+    // Walk backwards from the end to count consecutive errored tool-result turns.
     let consecutiveErrors = 0;
     for (let i = messages.length - 1; i >= prePromptMessageCount; i--) {
       const msg = messages[i];
-      if (msg.role !== "user") {
-        continue;
-      }
-      const content = (Array.isArray(msg.content) ? msg.content : []) as unknown as Array<
-        Record<string, unknown>
-      >;
-      const hasToolResult = content.some((b) => b.type === "tool_result");
-      if (!hasToolResult) {
+
+      let hasToolResult = false;
+      let allErrors = false;
+
+      if (msg.role === "toolResult") {
+        hasToolResult = true;
+        allErrors = Boolean((msg as { isError?: unknown }).isError);
+      } else if (msg.role === "user") {
+        const content = (Array.isArray(msg.content) ? msg.content : []) as unknown as Array<
+          Record<string, unknown>
+        >;
+        const toolResults = content.filter((b) => b.type === "tool_result");
+        hasToolResult = toolResults.length > 0;
+        allErrors = hasToolResult && toolResults.every((b) => b.is_error);
+      } else {
         continue;
       }
 
-      const allErrors = content.filter((b) => b.type === "tool_result").every((b) => b.is_error);
+      if (!hasToolResult) {
+        continue;
+      }
 
       if (allErrors) {
         consecutiveErrors++;
