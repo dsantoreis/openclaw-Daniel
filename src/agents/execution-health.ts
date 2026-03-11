@@ -9,6 +9,7 @@
  */
 
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import { extractToolCallsFromAssistant, extractToolResultId } from "./tool-call-id.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -99,9 +100,30 @@ type ToolCallEntry = {
   isEffect: boolean;
 };
 
+function getMessageTimestamp(msg: AgentMessage, fallback: number): number {
+  const value = (msg as { timestamp?: unknown }).timestamp;
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function isToolResultErrorMessage(msg: AgentMessage, toolUseId: string): boolean {
+  if (msg.role === "toolResult") {
+    return (
+      extractToolResultId(msg) === toolUseId && Boolean((msg as { isError?: unknown }).isError)
+    );
+  }
+  if (msg.role !== "user") {
+    return false;
+  }
+  const resultContent = Array.isArray(msg.content) ? msg.content : [];
+  return resultContent.some((rawRb) => {
+    const rb = rawRb as Record<string, unknown>;
+    return rb.type === "tool_result" && rb.tool_use_id === toolUseId && Boolean(rb.is_error);
+  });
+}
+
 /**
  * Extract tool call metadata from a flat message array.
- * We pair assistant tool_use blocks with their subsequent tool_result blocks.
+ * We pair assistant tool call blocks with their subsequent tool results.
  */
 function extractToolCalls(messages: AgentMessage[], afterIndex: number): ToolCallEntry[] {
   const entries: ToolCallEntry[] = [];
@@ -113,38 +135,34 @@ function extractToolCalls(messages: AgentMessage[], afterIndex: number): ToolCal
     }
 
     const content = Array.isArray(msg.content) ? msg.content : [];
-    for (const rawBlock of content) {
-      // Content blocks arrive as Anthropic API shapes at runtime; cast to generic record.
-      const block = rawBlock as unknown as Record<string, unknown>;
-      if (block.type !== "tool_use") {
+    const toolCalls = extractToolCallsFromAssistant(msg);
+    if (toolCalls.length === 0) {
+      continue;
+    }
+
+    const timestamp = getMessageTimestamp(msg, i);
+    for (const toolCall of toolCalls) {
+      const block = content.find((rawBlock) => {
+        const rec = rawBlock as Record<string, unknown>;
+        return rec && typeof rec === "object" && rec.id === toolCall.id;
+      }) as Record<string, unknown> | undefined;
+      if (!block) {
         continue;
       }
 
-      const name = block.name as string;
-      const args = block.input;
-      const toolUseId = block.id as string | undefined;
+      const name = toolCall.name ?? "unknown";
+      const args = block.input ?? block.arguments ?? block.args ?? {};
 
-      // Look for the matching tool_result
       let isError = false;
-      if (toolUseId) {
-        for (let j = i + 1; j < messages.length && j <= i + 2; j++) {
-          const resultMsg = messages[j];
-          if (resultMsg.role !== "user") {
-            continue;
-          }
-          const resultContent = Array.isArray(resultMsg.content) ? resultMsg.content : [];
-          for (const rawRb of resultContent) {
-            const rb = rawRb as unknown as Record<string, unknown>;
-            if (rb.type === "tool_result" && rb.tool_use_id === toolUseId && rb.is_error) {
-              isError = true;
-            }
-          }
+      for (let j = i + 1; j < messages.length && j <= i + 3; j++) {
+        if (isToolResultErrorMessage(messages[j], toolCall.id)) {
+          isError = true;
+          break;
         }
       }
 
       const argsObj = (args && typeof args === "object" ? args : {}) as Record<string, unknown>;
 
-      // Determine if this is a file write
       const isWrite =
         (name === "Write" ||
           name === "write" ||
@@ -152,7 +170,6 @@ function extractToolCalls(messages: AgentMessage[], afterIndex: number): ToolCal
           name === "create_file") &&
         typeof argsObj.file_path === "string";
 
-      // Determine if this is an "effect" (real side-effect)
       let isEffect = false;
       if (EFFECT_TOOL_NAMES.has(name)) {
         const cmd = typeof argsObj.command === "string" ? argsObj.command : "";
@@ -160,7 +177,6 @@ function extractToolCalls(messages: AgentMessage[], afterIndex: number): ToolCal
           isEffect = EFFECT_COMMAND_PATTERNS.some((re) => re.test(cmd));
         }
       }
-      // Messaging tools count as effects
       if (name.includes("send") || name.includes("Send") || name.includes("message")) {
         isEffect = true;
       }
@@ -168,7 +184,7 @@ function extractToolCalls(messages: AgentMessage[], afterIndex: number): ToolCal
       entries.push({
         name,
         args,
-        timestamp: Date.now(), // approximate; messages lack timestamps
+        timestamp,
         isWrite,
         isError,
         isEffect,
