@@ -212,7 +212,7 @@ describe("ExecutionHealthMonitor", () => {
       }
     });
 
-    it("resets streak on effect", () => {
+    it("resets streak on successful effect", () => {
       const monitor = new ExecutionHealthMonitor({ noEffectLoopThreshold: 3 });
 
       // Build a cumulative message array (simulating real session growth)
@@ -243,7 +243,7 @@ describe("ExecutionHealthMonitor", () => {
       messages.push(makeToolResultMessage([{ tool_use_id: "w2", content: "ok" }]));
       monitor.evaluate({ messages, prePromptMessageCount: 2 });
 
-      // Turn 3: effect (git push) — streak should reset, no trigger at threshold 3
+      // Turn 3: successful effect (git push) — streak should reset, no trigger at threshold 3
       messages.push(
         makeToolUseMessage([
           { name: "Bash", input: { command: "git push origin main" }, id: "push_1" },
@@ -262,6 +262,47 @@ describe("ExecutionHealthMonitor", () => {
       messages.push(makeToolResultMessage([{ tool_use_id: "w3", content: "ok" }]));
       const signals2 = monitor.evaluate({ messages, prePromptMessageCount: 2 });
       expect(signals2.find((s) => s.type === "no-effect-loop")).toBeUndefined();
+    });
+
+    it("does not reset streak on failed effect attempts", () => {
+      const monitor = new ExecutionHealthMonitor({ noEffectLoopThreshold: 3 });
+      const messages: AgentMessage[] = [
+        {
+          role: "user",
+          content: [{ type: "text", text: "system prompt" }],
+          timestamp: Date.now(),
+        } as AgentMessage,
+        { role: "assistant", content: [{ type: "text", text: "acknowledged" }] } as AgentMessage,
+      ];
+
+      messages.push(
+        makeToolUseMessage([
+          { name: "Write", input: { file_path: "/tmp/a.md", content: "x" }, id: "w1" },
+        ]),
+      );
+      messages.push(makeToolResultMessage([{ tool_use_id: "w1", content: "ok" }]));
+      monitor.evaluate({ messages, prePromptMessageCount: 2 });
+
+      messages.push(
+        makeToolUseMessage([
+          { name: "Write", input: { file_path: "/tmp/b.md", content: "x" }, id: "w2" },
+        ]),
+      );
+      messages.push(makeToolResultMessage([{ tool_use_id: "w2", content: "ok" }]));
+      monitor.evaluate({ messages, prePromptMessageCount: 2 });
+
+      messages.push(
+        makeToolUseMessage([
+          { name: "Bash", input: { command: "git push origin main" }, id: "push_fail" },
+        ]),
+      );
+      messages.push(
+        makeToolResultMessage([{ tool_use_id: "push_fail", content: "denied", is_error: true }]),
+      );
+      const signals = monitor.evaluate({ messages, prePromptMessageCount: 2 });
+      const noEffectLoop = signals.find((s) => s.type === "no-effect-loop");
+      expect(noEffectLoop).toBeDefined();
+      expect(noEffectLoop?.severity).toBe("warning");
     });
   });
 

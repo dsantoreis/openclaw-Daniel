@@ -350,8 +350,8 @@ export class ExecutionHealthMonitor {
   }
 
   private detectNoEffectLoop(toolCalls: ToolCallEntry[]): ExecutionHealthSignal | undefined {
-    const hasEffect = toolCalls.some((tc) => tc.isEffect);
-    if (hasEffect) {
+    const hasSuccessfulEffect = toolCalls.some((tc) => tc.isEffect && !tc.isError);
+    if (hasSuccessfulEffect) {
       this.noEffectStreak = 0;
       return undefined;
     }
