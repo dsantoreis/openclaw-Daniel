@@ -15,7 +15,11 @@ import { suggestOAuthProfileIdForLegacyDefault } from "./repair.js";
 import { ensureAuthProfileStore, saveAuthProfileStore } from "./store.js";
 import type { AuthProfileStore } from "./types.js";
 
-const OAUTH_PROVIDER_IDS = new Set<string>(getOAuthProviders().map((provider) => provider.id));
+const OAUTH_PROVIDER_IDS = new Set<string>(
+  (typeof getOAuthProviders === "function" ? getOAuthProviders() : []).map(
+    (provider) => provider.id,
+  ),
+);
 
 const isOAuthProvider = (provider: string): provider is OAuthProvider =>
   OAUTH_PROVIDER_IDS.has(provider);
