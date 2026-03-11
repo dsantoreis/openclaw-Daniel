@@ -39,8 +39,10 @@ export type ExecutionHealthSignal = {
 export type ExecutionHealthConfig = {
   enabled?: boolean;
   fileBurstThreshold?: number;
+  /** Reserved for future time-window filtering. Current burst detection is turn-bounded. */
   fileBurstWindowMs?: number;
   toolRepeatThreshold?: number;
+  /** Reserved for future time-window filtering. Current repeat detection scans session history. */
   toolRepeatWindowMs?: number;
   noEffectLoopThreshold?: number;
   errorCascadeThreshold?: number;
