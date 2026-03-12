@@ -68,6 +68,24 @@ describe("normalizeStoredCronJobs", () => {
     expect((jobs[0]?.payload as Record<string, unknown>)?.kind).toBe("agentTurn");
   });
 
+  it("normalizes whitespace-padded canonical payload kinds", () => {
+    const jobs = [
+      {
+        id: "whitespace-kind",
+        schedule: { kind: "cron", expr: "*/5 * * * *" },
+        payload: {
+          kind: " agentTurn ",
+          message: "hello",
+        },
+      },
+    ] as Array<Record<string, unknown>>;
+
+    const result = normalizeStoredCronJobs(jobs);
+
+    expect(result.mutated).toBe(true);
+    expect((jobs[0]?.payload as Record<string, unknown>)?.kind).toBe("agentTurn");
+  });
+
   it("is idempotent: running normalization twice produces no new issues", () => {
     const jobs = [
       {
