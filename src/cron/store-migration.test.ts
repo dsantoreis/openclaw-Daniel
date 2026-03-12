@@ -47,6 +47,52 @@ describe("normalizeStoredCronJobs", () => {
     });
   });
 
+  it("is idempotent on already-normalized jobs", () => {
+    const jobs = [
+      {
+        id: "already-normalized",
+        name: "test job",
+        enabled: true,
+        wakeMode: "now",
+        sessionTarget: "isolated",
+        schedule: { kind: "cron", expr: "*/5 * * * *" },
+        payload: {
+          kind: "agentTurn",
+          message: "hello",
+        },
+        delivery: { mode: "announce" },
+        state: {},
+      },
+    ] as Array<Record<string, unknown>>;
+
+    const _first = normalizeStoredCronJobs(jobs);
+    // First pass may touch stagger or minor fields
+    const snapshot = JSON.parse(JSON.stringify(jobs));
+
+    const second = normalizeStoredCronJobs(snapshot);
+    expect(second.issues).toEqual({});
+    expect(second.mutated).toBe(false);
+  });
+
+  it("does not flag agentTurn/systemEvent as legacy payload kind", () => {
+    const jobs = [
+      {
+        id: "correct-kind",
+        name: "already correct",
+        enabled: true,
+        wakeMode: "now",
+        sessionTarget: "isolated",
+        schedule: { kind: "every", everyMs: 60_000, anchorMs: 0 },
+        payload: { kind: "agentTurn", message: "hi" },
+        delivery: { mode: "announce" },
+        state: {},
+      },
+    ] as Array<Record<string, unknown>>;
+
+    const result = normalizeStoredCronJobs(jobs);
+    expect(result.issues.legacyPayloadKind).toBeUndefined();
+  });
+
   it("normalizes payload provider alias into channel", () => {
     const jobs = [
       {
