@@ -47,6 +47,45 @@ describe("normalizeStoredCronJobs", () => {
     });
   });
 
+  it("is idempotent: already-normalized payload kinds are not flagged as legacy (#44005)", () => {
+    const jobs = [
+      {
+        id: "already-fixed",
+        name: "test job",
+        schedule: { kind: "cron", expr: "*/5 * * * *" },
+        payload: { kind: "agentTurn", message: "hello" },
+        sessionTarget: "isolated",
+        enabled: true,
+        wakeMode: "now",
+        state: {},
+        delivery: { mode: "announce" },
+      },
+    ] as Array<Record<string, unknown>>;
+
+    const result = normalizeStoredCronJobs(jobs);
+
+    expect(result.issues.legacyPayloadKind).toBeUndefined();
+    expect((jobs[0]?.payload as Record<string, unknown>)?.kind).toBe("agentTurn");
+  });
+
+  it("is idempotent: running normalization twice produces no new issues", () => {
+    const jobs = [
+      {
+        jobId: "legacy-job",
+        schedule: { kind: "cron", cron: "*/5 * * * *" },
+        message: "say hi",
+        model: "openai/gpt-4.1",
+      },
+    ] as Array<Record<string, unknown>>;
+
+    const first = normalizeStoredCronJobs(jobs);
+    expect(first.mutated).toBe(true);
+
+    const second = normalizeStoredCronJobs(jobs);
+    expect(second.issues).toEqual({});
+    expect(second.mutated).toBe(false);
+  });
+
   it("normalizes payload provider alias into channel", () => {
     const jobs = [
       {
