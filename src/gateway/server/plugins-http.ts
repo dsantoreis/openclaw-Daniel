@@ -60,11 +60,20 @@ export type PluginHttpRequestHandler = (
 ) => Promise<boolean>;
 
 export function createGatewayPluginRequestHandler(params: {
-  registry: PluginRegistry;
+  registry: PluginRegistry | (() => PluginRegistry);
   log: SubsystemLogger;
 }): PluginHttpRequestHandler {
-  const { registry, log } = params;
+  const { log } = params;
+  // Accept either a static registry (tests, simple callers) or a getter
+  // function for live lookup. During startup, loadOpenClawPlugins may be
+  // called multiple times (config validation, schema building), each call
+  // replacing the active registry via setActivePluginRegistry. Channel plugins
+  // register their webhook routes on the current active registry, so callers
+  // that need live behavior should pass a getter that reads the active one.
+  const getRegistry =
+    typeof params.registry === "function" ? params.registry : (): PluginRegistry => params.registry;
   return async (req, res, providedPathContext, dispatchContext) => {
+    const registry = getRegistry();
     const routes = registry.httpRoutes ?? [];
     if (routes.length === 0) {
       return false;
