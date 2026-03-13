@@ -14,26 +14,36 @@ import {
   type WorkspaceBootstrapFile,
 } from "./workspace.js";
 
-const SESSION_HEAD_MAX_BYTES = 16384;
-const SESSION_HEAD_MAX_LINES = 100;
+const SESSION_TAIL_MAX_BYTES = 262144;
+const SESSION_TAIL_MAX_LINES = 4000;
 
 /**
  * Check whether a Pi session file already contains at least one assistant
- * message. Reads only the first chunk of the file to avoid loading the entire
- * transcript into memory.
+ * message. Reads a bounded tail region to avoid loading the whole transcript
+ * while remaining robust to very large first lines.
  */
 export async function sessionHasAssistantMessages(sessionFile: string): Promise<boolean> {
   let handle: fs.FileHandle | undefined;
   try {
     handle = await fs.open(sessionFile, "r");
-    const buf = Buffer.alloc(SESSION_HEAD_MAX_BYTES);
-    const { bytesRead } = await handle.read(buf, 0, buf.length, 0);
+    const stat = await handle.stat();
+    if (stat.size <= 0) {
+      return false;
+    }
+    const start = Math.max(0, stat.size - SESSION_TAIL_MAX_BYTES);
+    const readSize = stat.size - start;
+    const buf = Buffer.alloc(readSize);
+    const { bytesRead } = await handle.read(buf, 0, readSize, start);
     if (bytesRead <= 0) {
       return false;
     }
     const chunk = buf.toString("utf-8", 0, bytesRead);
-    const lines = chunk.split(/\r?\n/).slice(0, SESSION_HEAD_MAX_LINES);
-    for (const line of lines) {
+    const lines = chunk.split(/\r?\n/);
+    if (start > 0) {
+      lines.shift();
+    }
+    const boundedLines = lines.slice(-SESSION_TAIL_MAX_LINES);
+    for (const line of boundedLines) {
       if (!line.trim()) {
         continue;
       }

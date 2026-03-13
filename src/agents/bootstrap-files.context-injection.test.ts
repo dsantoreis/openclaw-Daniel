@@ -119,6 +119,17 @@ describe("sessionHasAssistantMessages", () => {
     await fs.writeFile(file, lines, "utf8");
     await expect(sessionHasAssistantMessages(file)).resolves.toBe(true);
   });
+
+  it("detects assistant messages even when the first user line is very large", async () => {
+    const file = path.join(tmpDir, "large-first-line.jsonl");
+    const hugeUser = JSON.stringify({ message: { role: "user", content: "x".repeat(200_000) } });
+    const lines = [
+      hugeUser,
+      JSON.stringify({ message: { role: "assistant", content: "hi" } }),
+    ].join("\n");
+    await fs.writeFile(file, lines, "utf8");
+    await expect(sessionHasAssistantMessages(file)).resolves.toBe(true);
+  });
 });
 
 describe("resolveBootstrapContextForRun with contextInjection", () => {
