@@ -31,12 +31,21 @@ export type ModelAliasIndex = {
   byKey: Map<string, string[]>;
 };
 
-const ANTHROPIC_MODEL_ALIASES: Record<string, string> = {
-  "opus-4.6": "claude-opus-4-6",
-  "opus-4.5": "claude-opus-4-5",
-  "sonnet-4.6": "claude-sonnet-4-6",
-  "sonnet-4.5": "claude-sonnet-4-5",
-};
+// Lazy-initialized to avoid TDZ errors in bundled output when circular
+// module dependencies cause this file to be evaluated before all top-level
+// declarations have been assigned (see #45057).
+let _anthropicModelAliases: Record<string, string> | undefined;
+function getAnthropicModelAliases(): Record<string, string> {
+  if (!_anthropicModelAliases) {
+    _anthropicModelAliases = {
+      "opus-4.6": "claude-opus-4-6",
+      "opus-4.5": "claude-opus-4-5",
+      "sonnet-4.6": "claude-sonnet-4-6",
+      "sonnet-4.5": "claude-sonnet-4-5",
+    };
+  }
+  return _anthropicModelAliases;
+}
 
 function normalizeAliasKey(value: string): string {
   return value.trim().toLowerCase();
@@ -151,7 +160,7 @@ function normalizeAnthropicModelId(model: string): string {
     return trimmed;
   }
   const lower = trimmed.toLowerCase();
-  return ANTHROPIC_MODEL_ALIASES[lower] ?? trimmed;
+  return getAnthropicModelAliases()[lower] ?? trimmed;
 }
 
 function normalizeProviderModelId(provider: string, model: string): string {

@@ -113,6 +113,18 @@ describe("model-selection", () => {
       });
     });
 
+    it("resolves anthropic aliases without TDZ error (#45057)", () => {
+      // Regression: in bundled builds, circular module dependencies could cause
+      // ANTHROPIC_MODEL_ALIASES to be in TDZ when parseModelRef was called
+      // during early config loading. The lazy getter pattern must prevent this.
+      for (const alias of ["opus-4.6", "opus-4.5", "sonnet-4.6", "sonnet-4.5"]) {
+        const result = parseModelRef(`anthropic/${alias}`, "openai");
+        expect(result).not.toBeNull();
+        expect(result!.provider).toBe("anthropic");
+        expect(result!.model).toMatch(/^claude-/);
+      }
+    });
+
     it("should use default provider if none specified", () => {
       expect(parseModelRef("claude-3-5-sonnet", "anthropic")).toEqual({
         provider: "anthropic",
