@@ -324,6 +324,7 @@ async function createOllamaTestStream(params: {
   options?: {
     apiKey?: string;
     maxTokens?: number;
+    num_ctx?: number;
     signal?: AbortSignal;
     headers?: Record<string, string>;
   };
@@ -381,6 +382,31 @@ describe("createOllamaStreamFn", () => {
         };
         expect(requestBody.options.num_ctx).toBe(131072);
         expect(requestBody.options.num_predict).toBe(123);
+      },
+    );
+  });
+
+  it("prefers user-configured num_ctx over model.contextWindow", async () => {
+    await withMockNdjsonFetch(
+      [
+        '{"model":"m","created_at":"t","message":{"role":"assistant","content":"ok"},"done":false}',
+        '{"model":"m","created_at":"t","message":{"role":"assistant","content":""},"done":true,"prompt_eval_count":1,"eval_count":1}',
+      ],
+      async (fetchMock) => {
+        const stream = await createOllamaTestStream({
+          baseUrl: "http://ollama-host:11434",
+          options: { num_ctx: 8192 },
+        });
+
+        const events = await collectStreamEvents(stream);
+        expect(events.at(-1)?.type).toBe("done");
+
+        const [, requestInit] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+        const requestBody = JSON.parse(requestInit.body as string) as {
+          options: { num_ctx?: number };
+        };
+        // User's num_ctx (8192) should override model.contextWindow (131072)
+        expect(requestBody.options.num_ctx).toBe(8192);
       },
     );
   });

@@ -124,6 +124,11 @@ function createStreamFnWithExtraParams(
       ? (extraParams.provider as Record<string, unknown>)
       : undefined;
 
+  // Pass through num_ctx so native Ollama stream can use it as an override.
+  if (typeof extraParams.num_ctx === "number" && Number.isFinite(extraParams.num_ctx)) {
+    (streamParams as Record<string, unknown>).num_ctx = extraParams.num_ctx;
+  }
+
   if (Object.keys(streamParams).length === 0 && !providerRouting) {
     return undefined;
   }

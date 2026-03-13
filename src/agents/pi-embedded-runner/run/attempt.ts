@@ -425,6 +425,26 @@ export function wrapOllamaCompatNumCtx(baseFn: StreamFn | undefined, numCtx: num
     });
 }
 
+/**
+ * Resolve user-configured num_ctx from openclaw.json model params.
+ *
+ * Checks `agents.defaults.models.<provider/modelId>.params.num_ctx` and
+ * returns the value if it's a valid positive number, otherwise undefined.
+ */
+export function resolveUserNumCtx(
+  config: OpenClawConfig | undefined,
+  provider: string,
+  modelId: string,
+): number | undefined {
+  const modelKey = `${provider}/${modelId}`;
+  const modelConfig = config?.agents?.defaults?.models?.[modelKey];
+  const numCtx = modelConfig?.params?.num_ctx;
+  if (typeof numCtx === "number" && Number.isFinite(numCtx) && numCtx > 0) {
+    return numCtx;
+  }
+  return undefined;
+}
+
 function resolveCaseInsensitiveAllowedToolName(
   rawName: string,
   allowedToolNames?: Set<string>,
@@ -1916,10 +1936,14 @@ export async function runEmbeddedAttempt(
         providerId: providerIdForNumCtx,
       });
       if (shouldInjectNumCtx) {
+        const userNumCtx = resolveUserNumCtx(params.config, params.provider, params.modelId);
         const numCtx = Math.max(
           1,
           Math.floor(
-            params.model.contextWindow ?? params.model.maxTokens ?? DEFAULT_CONTEXT_TOKENS,
+            userNumCtx ??
+              params.model.contextWindow ??
+              params.model.maxTokens ??
+              DEFAULT_CONTEXT_TOKENS,
           ),
         );
         activeSession.agent.streamFn = wrapOllamaCompatNumCtx(activeSession.agent.streamFn, numCtx);

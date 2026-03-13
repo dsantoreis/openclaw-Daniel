@@ -10,6 +10,7 @@ import {
   resolveOllamaCompatNumCtxEnabled,
   resolvePromptBuildHookResult,
   resolvePromptModeForSession,
+  resolveUserNumCtx,
   shouldInjectOllamaCompatNumCtx,
   decodeHtmlEntitiesInObject,
   wrapOllamaCompatNumCtx,
@@ -982,6 +983,74 @@ describe("wrapOllamaCompatNumCtx", () => {
     expect(baseFn).toHaveBeenCalledTimes(1);
     expect((payloadSeen?.options as Record<string, unknown> | undefined)?.num_ctx).toBe(202752);
     expect(downstream).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("resolveUserNumCtx", () => {
+  it("returns num_ctx from model params when configured", () => {
+    const config: OpenClawConfig = {
+      agents: {
+        defaults: {
+          models: {
+            "ollama/qwen2.5:14b": {
+              params: { num_ctx: 8192 },
+            },
+          },
+        },
+      },
+    };
+    expect(resolveUserNumCtx(config, "ollama", "qwen2.5:14b")).toBe(8192);
+  });
+
+  it("returns undefined when no model config exists", () => {
+    expect(resolveUserNumCtx({}, "ollama", "qwen2.5:14b")).toBeUndefined();
+  });
+
+  it("returns undefined when params is missing", () => {
+    const config: OpenClawConfig = {
+      agents: {
+        defaults: {
+          models: {
+            "ollama/qwen2.5:14b": {},
+          },
+        },
+      },
+    };
+    expect(resolveUserNumCtx(config, "ollama", "qwen2.5:14b")).toBeUndefined();
+  });
+
+  it("returns undefined when num_ctx is not a number", () => {
+    const config: OpenClawConfig = {
+      agents: {
+        defaults: {
+          models: {
+            "ollama/qwen2.5:14b": {
+              params: { num_ctx: "8192" as unknown as number },
+            },
+          },
+        },
+      },
+    };
+    expect(resolveUserNumCtx(config, "ollama", "qwen2.5:14b")).toBeUndefined();
+  });
+
+  it("returns undefined when num_ctx is zero or negative", () => {
+    const config: OpenClawConfig = {
+      agents: {
+        defaults: {
+          models: {
+            "ollama/qwen2.5:14b": {
+              params: { num_ctx: 0 },
+            },
+          },
+        },
+      },
+    };
+    expect(resolveUserNumCtx(config, "ollama", "qwen2.5:14b")).toBeUndefined();
+  });
+
+  it("returns undefined when config is undefined", () => {
+    expect(resolveUserNumCtx(undefined, "ollama", "qwen2.5:14b")).toBeUndefined();
   });
 });
 

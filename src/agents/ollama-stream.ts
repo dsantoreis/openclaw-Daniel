@@ -451,7 +451,17 @@ export function createOllamaStreamFn(
 
         // Ollama defaults to num_ctx=4096 which is too small for large
         // system prompts + many tool definitions. Use model's contextWindow.
-        const ollamaOptions: Record<string, unknown> = { num_ctx: model.contextWindow ?? 65536 };
+        // Allow user-configured num_ctx (via options) to override the
+        // auto-discovered GGUF context_length (model.contextWindow).
+        const optionsRecord = options as Record<string, unknown> | undefined;
+        const rawNumCtx = optionsRecord?.num_ctx;
+        const userNumCtx =
+          typeof rawNumCtx === "number" && Number.isFinite(rawNumCtx) && rawNumCtx > 0
+            ? rawNumCtx
+            : undefined;
+        const ollamaOptions: Record<string, unknown> = {
+          num_ctx: userNumCtx ?? model.contextWindow ?? 65536,
+        };
         if (typeof options?.temperature === "number") {
           ollamaOptions.temperature = options.temperature;
         }
