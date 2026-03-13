@@ -479,7 +479,7 @@ describe("resolveSessionDeliveryTarget", () => {
       updatedAt: 1,
       lastChannel: "imessage",
       lastTo: "chat-guid-unknown-shape",
-      chatType: "direct",
+      chatType: "direct" as const,
     });
 
     expect(resolved.channel).toBe("imessage");
@@ -493,7 +493,7 @@ describe("resolveSessionDeliveryTarget", () => {
         updatedAt: 1,
         lastChannel: "imessage",
         lastTo: "chat-guid-unknown-shape",
-        chatType: "direct",
+        chatType: "direct" as const,
       },
       "block",
     );
