@@ -152,6 +152,39 @@ describe("normalizeReplyPayload", () => {
   });
 });
 
+describe("normalizeReplyPayload – responsePrefix", () => {
+  it("skips prefix with unresolved template variables when context is missing", () => {
+    const result = normalizeReplyPayload(
+      { text: "⚙️ Agent was aborted." },
+      { responsePrefix: "{model} - {thinkingLevel} 🦞" },
+    );
+    expect(result).not.toBeNull();
+    expect(result!.text).toBe("⚙️ Agent was aborted.");
+    expect(result!.text).not.toContain("{model}");
+  });
+
+  it("applies static prefix without template variables when context is missing", () => {
+    const result = normalizeReplyPayload(
+      { text: "⚙️ Agent was aborted." },
+      { responsePrefix: "🤖" },
+    );
+    expect(result).not.toBeNull();
+    expect(result!.text).toBe("🤖 ⚙️ Agent was aborted.");
+  });
+
+  it("resolves prefix template variables when context is provided", () => {
+    const result = normalizeReplyPayload(
+      { text: "⚙️ Agent was aborted." },
+      {
+        responsePrefix: "{model} - {thinkingLevel} 🦞",
+        responsePrefixContext: { model: "kimi-k2.5", thinkingLevel: "off" },
+      },
+    );
+    expect(result).not.toBeNull();
+    expect(result!.text).toBe("kimi-k2.5 - off 🦞 ⚙️ Agent was aborted.");
+  });
+});
+
 describe("typing controller", () => {
   afterEach(() => {
     vi.useRealTimers();

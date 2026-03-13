@@ -9,6 +9,7 @@ import {
 import type { ReplyPayload } from "../types.js";
 import { hasLineDirectives, parseLineDirectives } from "./line-directives.js";
 import {
+  hasTemplateVariables,
   resolveResponsePrefixTemplate,
   type ResponsePrefixContext,
 } from "./response-prefix-template.js";
@@ -91,10 +92,14 @@ export function normalizeReplyPayload(
     text = enrichedPayload.text;
   }
 
-  // Resolve template variables in responsePrefix if context is provided
+  // Resolve template variables in responsePrefix if context is provided.
+  // When context is missing and the prefix has unresolved variables, skip it
+  // entirely to avoid leaking raw template literals like "{model}".
   const effectivePrefix = opts.responsePrefixContext
     ? resolveResponsePrefixTemplate(opts.responsePrefix, opts.responsePrefixContext)
-    : opts.responsePrefix;
+    : hasTemplateVariables(opts.responsePrefix)
+      ? undefined
+      : opts.responsePrefix;
 
   if (
     effectivePrefix &&
