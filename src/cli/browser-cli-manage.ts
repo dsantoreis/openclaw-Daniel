@@ -54,7 +54,7 @@ async function fetchBrowserStatus(
       query: resolveProfileQuery(profile),
     },
     {
-      timeoutMs: 1500,
+      timeoutMs: 5_000,
     },
   );
 }
