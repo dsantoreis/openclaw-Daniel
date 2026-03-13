@@ -165,6 +165,22 @@ describe("web media loading", () => {
     expect(result.buffer.length).toBeLessThan(buffer.length);
   });
 
+  it("decodes percent-encoded filenames for non-ASCII paths (#44988)", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "media-cjk-"));
+    const encodedName = "%E6%B5%8B%E8%AF%95.txt";
+    const filePath = path.join(dir, encodedName);
+    await fs.writeFile(filePath, "hello");
+
+    const result = await loadWebMedia(filePath, {
+      maxBytes: 1024 * 1024,
+      localRoots: "any",
+      readFile: (p) => fs.readFile(p),
+    });
+
+    expect(result.fileName).toBe("测试.txt");
+    await fs.rm(dir, { recursive: true });
+  });
+
   it("optimizes images when options object omits optimizeImages", async () => {
     const { buffer, file } = await createLargeTestJpeg();
     const cap = Math.max(1, Math.floor(buffer.length * 0.8));

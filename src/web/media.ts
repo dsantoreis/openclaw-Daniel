@@ -387,6 +387,15 @@ async function loadWebMediaInternal(
   const mime = await detectMime({ buffer: data, filePath: mediaUrl });
   const kind = kindFromMime(mime);
   let fileName = path.basename(mediaUrl) || undefined;
+  // Decode percent-encoded filenames so non-ASCII characters (e.g. Chinese)
+  // are passed through as-is to channel plugins (#44988).
+  if (fileName) {
+    try {
+      fileName = decodeURIComponent(fileName);
+    } catch {
+      // Not percent-encoded or malformed; keep as-is.
+    }
+  }
   if (fileName && !path.extname(fileName) && mime) {
     const ext = extensionForMime(mime);
     if (ext) {
